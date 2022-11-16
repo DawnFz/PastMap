@@ -23,7 +23,7 @@
   <dependency>
       <groupId>io.github.dawnfz</groupId>
       <artifactId>PastMap</artifactId>
-      <version>0.1.5.RELEASE</version>
+      <version>0.1.6.RELEASE</version>
   </dependency>
   ```
   
@@ -82,7 +82,7 @@
   <dependency>
       <groupId>io.github.dawnfz</groupId>
       <artifactId>PastMap</artifactId>
-      <version>0.1.5.RELEASE</version>
+      <version>0.1.6.RELEASE</version>
   </dependency>
   ```
   ```java

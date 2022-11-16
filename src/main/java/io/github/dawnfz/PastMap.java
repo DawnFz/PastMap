@@ -8,33 +8,31 @@ public class PastMap<K, V>
 {
     private final Map<K, V> data = new HashMap<>();
     private final Map<K, Long> timeMap = new HashMap<>();
-    private final Timer timer = new Timer();
+    private Timer timer;
 
-    public void clearPastValue()
+    public synchronized void clearPastValue()
     {
-        synchronized (this)
+        try
         {
-            try
+            Set<K> ks = new HashSet<>(data.keySet());
+            Long time;
+            for (K k : ks)
             {
-                Set<K> ks = new HashSet<>(data.keySet());
-                Long time;
-                for (K k : ks)
-                {
-                    time = timeMap.get(k);
-                    if (time != null && System.currentTimeMillis() < time) continue;
-                    data.remove(k);
-                    timeMap.remove(k);
-                }
+                time = timeMap.get(k);
+                if (time != null && (time == -1 || System.currentTimeMillis() < time)) continue;
+                data.remove(k);
+                timeMap.remove(k);
             }
-            catch (IllegalStateException ise)
-            {
-                throw new ConcurrentModificationException(ise);
-            }
+        }
+        catch (IllegalStateException ise)
+        {
+            throw new ConcurrentModificationException(ise);
         }
     }
 
-    public PastMap<K,V> timingClear(int second)
+    public PastMap<K, V> timingClear(int second)
     {
+        timer = new Timer();
         TimerTask task = new TimerTask()
         {
             public void run()
@@ -53,72 +51,80 @@ public class PastMap<K, V>
         timer.cancel();
     }
 
-    public void put(K key, V value, Long time)
+    public synchronized void put(K key, V value)
     {
         data.put(key, value);
-        timeMap.put(key, time + System.currentTimeMillis());
+        timeMap.put(key, -1L);
     }
 
-    public V get(K key)
+    public synchronized void put(K key, V value, long millis)
     {
-        synchronized (this)
+        data.put(key, value);
+        timeMap.put(key, millis + System.currentTimeMillis());
+    }
+
+    public synchronized void put(K key, V value, int second)
+    {
+        data.put(key, value);
+        timeMap.put(key, second * 1000L + System.currentTimeMillis());
+    }
+
+    public synchronized boolean againSetExpired(K key, long millis)
+    {
+        V v = get(key);
+        if (v != null)
         {
-            V v = data.get(key);
-            Long time = timeMap.get(key);
-            if (time != null && System.currentTimeMillis() < time) return v;
-            data.remove(key);
-            timeMap.remove(key);
+            timeMap.put(key, millis + System.currentTimeMillis());
+            return true;
         }
+        return false;
+    }
+
+    public synchronized V get(K key)
+    {
+        V v = data.get(key);
+        Long time = timeMap.get(key);
+        if (time != null && (time == -1 || System.currentTimeMillis() < time)) return v;
+        data.remove(key);
+        timeMap.remove(key);
         return null;
     }
 
-    public void forEach(BiConsumer<? super K, ? super V> action)
+    public synchronized void forEach(BiConsumer<? super K, ? super V> action)
     {
-        synchronized (this)
+        K k;
+        V v;
+        for (Map.Entry<K, V> entry : entrySet())
         {
-            for (Map.Entry<K, V> entry : entrySet())
+            try
             {
-                K k;
-                V v;
-                try
-                {
-                    k = entry.getKey();
-                    v = entry.getValue();
-                }
-                catch (IllegalStateException ise)
-                {
-                    continue;
-                }
-                action.accept(k, v);
+                k = entry.getKey();
+                v = entry.getValue();
             }
+            catch (IllegalStateException ise)
+            {
+                continue;
+            }
+            action.accept(k, v);
         }
     }
 
-    public void clear()
+    public synchronized void clear()
     {
-        synchronized (this)
-        {
-            data.clear();
-            timeMap.clear();
-        }
+        data.clear();
+        timeMap.clear();
     }
 
-    public V remove(K key)
+    public synchronized V remove(K key)
     {
-        synchronized (this)
-        {
-            timeMap.remove(key);
-            return data.remove(key);
-        }
+        timeMap.remove(key);
+        return data.remove(key);
     }
 
-    public boolean remove(K key, V value)
+    public synchronized boolean remove(K key, V value)
     {
-        synchronized (this)
-        {
-            timeMap.remove(key);
-            return data.remove(key, value);
-        }
+        timeMap.remove(key);
+        return data.remove(key, value);
     }
 
     public int size()
@@ -176,9 +182,15 @@ public class PastMap<K, V>
         return replace;
     }
 
+    public Map<K, V> toMap()
+    {
+        return new HashMap<>(data);
+    }
+
     @Override
     public boolean equals(Object o)
     {
+        clearPastValue();
         if (o.getClass() == PastMap.class)
         {
             PastMap<?, ?> pastMap = (PastMap<?, ?>) o;
