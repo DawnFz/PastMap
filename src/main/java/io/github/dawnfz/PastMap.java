@@ -3,6 +3,7 @@ package io.github.dawnfz;
 import java.util.*;
 import java.util.function.BiConsumer;
 
+// not extends Map
 public class PastMap<K, V>
 {
     private final Map<K, V> data = new HashMap<>();
@@ -32,7 +33,7 @@ public class PastMap<K, V>
         }
     }
 
-    public PastMap<K, V> timingClear(int second)
+    public PastMap<K,V> timingClear(int second)
     {
         TimerTask task = new TimerTask()
         {
@@ -45,6 +46,11 @@ public class PastMap<K, V>
         long period = second * 1000L;
         timer.scheduleAtFixedRate(task, delay, period);
         return this;
+    }
+
+    public void closeTiming()
+    {
+        timer.cancel();
     }
 
     public void put(K key, V value, Long time)
@@ -65,7 +71,6 @@ public class PastMap<K, V>
         }
         return null;
     }
-
 
     public void forEach(BiConsumer<? super K, ? super V> action)
     {
@@ -183,10 +188,5 @@ public class PastMap<K, V>
         }
         else if (o.getClass() == HashMap.class) return data.equals(o);
         return false;
-    }
-
-    public void closeTiming()
-    {
-        timer.cancel();
     }
 }
